@@ -124,6 +124,13 @@ function LandingPage() {
             are used, and no exchange account is connected. This project is a
             product demonstration—not financial advice.
           </p>
+          <p className="landing-preview-disclaimer">
+            <span>Public preview — provided as-is.</span> This demo is not
+            actively maintained as a production service. Some features are
+            simplified or incomplete, and bugs, inaccurate simulations or
+            temporary interruptions may occur. Functionality may change without
+            notice.
+          </p>
           <div className="landing-live-contact-copy">
             For live trading and in-app execution on Binance,{
             " "
