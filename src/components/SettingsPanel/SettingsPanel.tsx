@@ -435,27 +435,31 @@ export default function SettingsPanel({
 
     const controller = new AbortController();
 
-    setIsLoadingBalance(true);
-    setBalanceError(null);
+    const refreshBalance = () => {
+      setIsLoadingBalance(true);
+      setBalanceError(null);
+
+      void getAvailableBalance(controller.signal)
+        .then(setAvailableBalance)
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+
+          setAvailableBalance(null);
+          setBalanceError(
+            error instanceof Error ? error.message : "Unable to load balance",
+          );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsLoadingBalance(false);
+          }
+        });
+    };
+
+    refreshBalance();
     setSizingError(null);
-
-    void getAvailableBalance(controller.signal)
-      .then(setAvailableBalance)
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-
-        setAvailableBalance(null);
-        setBalanceError(
-          error instanceof Error ? error.message : "Unable to load balance",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoadingBalance(false);
-        }
-      });
 
     void getSizing(controller.signal)
       .then((result) => {
@@ -472,7 +476,14 @@ export default function SettingsPanel({
         );
       });
 
-    return () => controller.abort();
+    window.addEventListener("account-state-changed", refreshBalance);
+    window.addEventListener("trading-state-changed", refreshBalance);
+
+    return () => {
+      controller.abort();
+      window.removeEventListener("account-state-changed", refreshBalance);
+      window.removeEventListener("trading-state-changed", refreshBalance);
+    };
   }, [isOpen, backendConnection]);
 
   useEffect(() => {

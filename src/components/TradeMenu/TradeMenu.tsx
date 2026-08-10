@@ -305,7 +305,7 @@ export default function TradeMenu(props: TradeMenuProps) {
               >
                 <span className="trade-order-type-icon">AUTO</span>
                 <strong>AUTO MARKET</strong>
-                <small>1% margin · leverage from stop</small>
+                <small>Configured margin · leverage from stop</small>
               </button>
             </div>
           </section>

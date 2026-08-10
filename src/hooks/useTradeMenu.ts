@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_LEVERAGE, DEFAULT_ORDER_NOTIONAL_USDT } from "../config/constants";
+import { DEFAULT_LEVERAGE } from "../config/constants";
 import { getAvailableBalance } from "../trading/api/account";
 import {
   placeAutoMarketOrder,
@@ -115,6 +115,7 @@ export function useTradeMenu(
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [marginPct, setMarginPct] = useState(0.02);
   const [positionSide, setPositionSide] = useState<PositionSide | null>(null);
   const [positionQuantity, setPositionQuantity] = useState(0);
   /**
@@ -281,6 +282,17 @@ export function useTradeMenu(
         setPositionSide(null);
         setPositionQuantity(0);
         setReservedReduceQuantity(0);
+      }
+
+      if (sizingResult.status === "fulfilled") {
+        const configuredMarginPct = Number(sizingResult.value.margin_pct);
+        if (
+          Number.isFinite(configuredMarginPct) &&
+          configuredMarginPct > 0 &&
+          configuredMarginPct <= 1
+        ) {
+          setMarginPct(configuredMarginPct);
+        }
       }
 
       const personalMax =
@@ -481,13 +493,19 @@ export function useTradeMenu(
       // is what let a fixed 0.001 quantity clear validation for BTC but
       // silently produce a sub-$20 notional for ETH/SOL/XRP.
       const filters = await getSymbolFilters(symbol);
+      if (availableBalance == null || availableBalance <= 0) {
+        throw new Error("Demo balance is unavailable");
+      }
+
+      const marginToUse = availableBalance * marginPct;
+      const orderNotional = marginToUse * leverage;
 
       if (isLimit) {
         executionPrice = roundToStep(executionPrice, filters.tickSize);
         const quantity = computeDefaultOrderQuantity(
           executionPrice,
           filters,
-          DEFAULT_ORDER_NOTIONAL_USDT,
+          orderNotional,
         );
         const result = await placeLimitOrder({
           symbol,
@@ -521,7 +539,7 @@ export function useTradeMenu(
         const quantity = computeDefaultOrderQuantity(
           executionPrice,
           filters,
-          DEFAULT_ORDER_NOTIONAL_USDT,
+          orderNotional,
         );
         const result = await placeMarketOrder({
           symbol,
@@ -713,10 +731,14 @@ export function useTradeMenu(
       const filters = await getSymbolFilters(symbol);
       const referencePrice =
         orderType === "LIMIT" ? tradeMenu.selectedPrice : tradeMenu.marketPrice;
+      if (availableBalance == null || availableBalance <= 0) {
+        throw new Error("Demo balance is unavailable");
+      }
+
       const quantity = computeDefaultOrderQuantity(
         referencePrice,
         filters,
-        DEFAULT_ORDER_NOTIONAL_USDT,
+        availableBalance * marginPct * leverage,
       );
 
       const result = await executePositionIntent({
@@ -725,7 +747,7 @@ export function useTradeMenu(
         orderType,
         price: orderType === "LIMIT" ? tradeMenu.selectedPrice : undefined,
         quantity,
-        leverage: DEFAULT_LEVERAGE,
+        leverage,
       });
 
       if (orderType === "LIMIT") {

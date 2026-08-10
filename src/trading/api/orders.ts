@@ -3,7 +3,8 @@ import type {
   OrderSide, PlaceLimitOrderResponse, PlaceMarketOrderResponse, RepriceReduceOrderResponse,
 } from "../types";
 import {
-  addDemoOrder, demoId, demoOrders, demoPositions, demoPrice, openDemoPosition,
+  addDemoOrder, demoBalance, demoId, demoOrders, demoPositions, demoPrice,
+  demoSizing, openDemoPosition,
   reduceDemoPosition, removeDemoOrder, updateDemoOrder,
 } from "../demoStore";
 
@@ -48,15 +49,30 @@ export async function placeLimitOrder({ symbol, side, price, quantity, leverage 
 export type PlaceAutoMarketOrderInput = { symbol: string; side: OrderSide; stopLoss: number; price?: number };
 export async function placeAutoMarketOrder({ symbol, side, stopLoss, price }: PlaceAutoMarketOrderInput): Promise<AutoMarketOrderResponse> {
   const entry = demoPrice(symbol, price);
-  const leverage = 5;
-  const quantity = 50 / entry;
+  const sizing = demoSizing();
+  const stopDistance = Math.abs(entry - stopLoss);
+  if (!(stopDistance > 0)) throw new Error("Stop loss must differ from entry price");
+
+  const theoreticalMaxLeverage = entry / stopDistance;
+  const leverage = Math.max(
+    1,
+    Math.min(
+      sizing.max_leverage,
+      Math.floor(theoreticalMaxLeverage * sizing.leverage_safety),
+    ),
+  );
+  const marginUsed = demoBalance() * sizing.margin_pct;
+  const notional = marginUsed * leverage;
+  const quantity = notional / entry;
   openDemoPosition(symbol, side, quantity, entry, leverage);
   return {
     symbol: symbol.toUpperCase(), side, stop_loss: stopLoss, entry_reference_price: entry,
-    stop_distance: Math.abs(entry - stopLoss), stop_distance_pct: Math.abs(entry - stopLoss) / entry * 100,
-    margin_pct: 0.02, margin_used: 10, theoretical_max_leverage: leverage, safe_stop_leverage: leverage,
-    exchange_max_leverage: 50, applied_leverage: leverage, submitted_quantity: quantity, notional: 50,
-    estimated_loss_at_stop: quantity * Math.abs(entry - stopLoss), client_order_id: `demo-auto-${Date.now()}`,
+    stop_distance: stopDistance, stop_distance_pct: stopDistance / entry * 100,
+    margin_pct: sizing.margin_pct, margin_used: marginUsed,
+    theoretical_max_leverage: theoreticalMaxLeverage, safe_stop_leverage: leverage,
+    exchange_max_leverage: sizing.max_leverage, applied_leverage: leverage,
+    submitted_quantity: quantity, notional,
+    estimated_loss_at_stop: quantity * stopDistance, client_order_id: `demo-auto-${Date.now()}`,
     stop_order_created: false, order: responseOrder(symbol, side, quantity, entry, "FILLED", `demo-auto-${Date.now()}`),
   };
 }

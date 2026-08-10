@@ -15,7 +15,7 @@ type DemoState = {
   sizing: SizingConfig;
 };
 
-const DEMO_STATE_SCHEMA_VERSION = 2;
+const DEMO_STATE_SCHEMA_VERSION = 3;
 
 function removeDuplicateFullTakeProfits(orders: OpenOrder[]): OpenOrder[] {
   const newestFullTakeProfitBySymbol = new Map<string, OpenOrder>();
@@ -94,10 +94,31 @@ function load(): DemoState {
       ? removeLegacyAutomaticTakeProfits(deduplicatedOrders, positions)
       : deduplicatedOrders;
 
+    const storedBalance =
+      typeof parsed.balance === "number" && Number.isFinite(parsed.balance)
+        ? parsed.balance
+        : STARTING_BALANCE;
+    const migratedBalance =
+      (parsed.schemaVersion ?? 0) < DEMO_STATE_SCHEMA_VERSION
+        ? Math.max(
+            0,
+            storedBalance -
+              positions.reduce(
+                (total, position) =>
+                  total +
+                  (Number.isFinite(position.margin) && position.margin > 0
+                    ? position.margin
+                    : 0),
+                0,
+              ),
+          )
+        : storedBalance;
+
     return {
       ...defaultState(),
       ...parsed,
       schemaVersion: DEMO_STATE_SCHEMA_VERSION,
+      balance: migratedBalance,
       positions,
       // Earlier demo builds created a second 100% TP when the existing TP
       // was moved. Keep the newest one per symbol so already-saved browser
@@ -170,13 +191,22 @@ export function openDemoPosition(
 
   if (existing && existing.side === direction) {
     const total = existing.quantity + nextQty;
-    existing.entry_price = total > 0
+    const nextEntryPrice = total > 0
       ? ((existing.entry_price * existing.quantity) + (mark * nextQty)) / total
       : mark;
+    const nextMargin = (total * mark) / lev;
+    const additionalMargin = nextMargin - existing.margin;
+
+    if (additionalMargin > state.balance + 1e-8) {
+      throw new Error("Insufficient demo balance for this position margin");
+    }
+
+    state.balance = Math.max(0, state.balance - additionalMargin);
+    existing.entry_price = nextEntryPrice;
     existing.quantity = total;
     existing.mark_price = mark;
     existing.leverage = lev;
-    existing.margin = (total * mark) / lev;
+    existing.margin = nextMargin;
     existing.unrealized_pnl = 0;
     existing.roi_pct = 0;
     ensureDemoProtection(existing);
@@ -184,8 +214,28 @@ export function openDemoPosition(
     return { ...existing };
   }
 
-  if (existing) state.positions = state.positions.filter((item) => item !== existing);
   const margin = (nextQty * mark) / lev;
+
+  // One-way demo mode: an opposite-side entry replaces the old position.
+  // Settle its released margin/PnL first, but validate the resulting balance
+  // before mutating anything so a rejected order cannot close the old trade.
+  const balanceAfterExisting = existing
+    ? state.balance + existing.margin + existing.unrealized_pnl
+    : state.balance;
+
+  if (margin > balanceAfterExisting + 1e-8) {
+    throw new Error("Insufficient demo balance for this position margin");
+  }
+
+  if (existing) {
+    state.positions = state.positions.filter((item) => item !== existing);
+    state.orders = state.orders.filter(
+      (order) => order.symbol !== normalized || !order.reduceOnly,
+    );
+    saveStop(null, normalized);
+  }
+
+  state.balance = Math.max(0, balanceAfterExisting - margin);
   const position: OpenPosition = {
     symbol: normalized,
     side: direction,
@@ -208,7 +258,20 @@ export function reduceDemoPosition(symbol: string, pct = 100): OpenPosition | nu
   const normalized = symbol.toUpperCase();
   const position = state.positions.find((item) => item.symbol === normalized);
   if (!position) return null;
-  const remaining = position.quantity * Math.max(0, 1 - pct / 100);
+  const appliedPct = Math.min(100, Math.max(0, pct));
+  const closedFraction = appliedPct / 100;
+  const closedQuantity = position.quantity * closedFraction;
+  const remaining = position.quantity - closedQuantity;
+  const releasedMargin = position.margin * closedFraction;
+  const direction = position.side === "LONG" ? 1 : -1;
+  const realizedPnl =
+    (position.mark_price - position.entry_price) * closedQuantity * direction;
+
+  state.balance = Math.max(
+    0,
+    state.balance + releasedMargin + realizedPnl,
+  );
+
   if (remaining <= 1e-8) {
     state.positions = state.positions.filter((item) => item !== position);
     state.orders = state.orders.filter((order) => order.symbol !== normalized || !order.reduceOnly);
@@ -217,7 +280,13 @@ export function reduceDemoPosition(symbol: string, pct = 100): OpenPosition | nu
     return null;
   }
   position.quantity = remaining;
-  position.margin = (remaining * position.mark_price) / position.leverage;
+  position.margin = Math.max(0, position.margin - releasedMargin);
+  position.unrealized_pnl =
+    (position.mark_price - position.entry_price) * remaining * direction;
+  position.roi_pct =
+    position.margin > 0
+      ? (position.unrealized_pnl / position.margin) * 100
+      : 0;
   ensureDemoProtection(position);
   save();
   return { ...position };
