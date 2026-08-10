@@ -14,6 +14,24 @@ type DemoState = {
   sizing: SizingConfig;
 };
 
+function removeDuplicateFullTakeProfits(orders: OpenOrder[]): OpenOrder[] {
+  const newestFullTakeProfitBySymbol = new Map<string, OpenOrder>();
+
+  for (const order of orders) {
+    if (!/^fe-red-p100-r0-/i.test(order.clientOrderId)) continue;
+    const current = newestFullTakeProfitBySymbol.get(order.symbol);
+    if (!current || order.updateTime >= current.updateTime) {
+      newestFullTakeProfitBySymbol.set(order.symbol, order);
+    }
+  }
+
+  return orders.filter(
+    (order) =>
+      !/^fe-red-p100-r0-/i.test(order.clientOrderId) ||
+      newestFullTakeProfitBySymbol.get(order.symbol)?.orderId === order.orderId,
+  );
+}
+
 const fallbackPrices: Record<string, number> = {
   BTCUSDT: 118_500,
   ETHUSDT: 4_250,
@@ -39,7 +57,12 @@ function load(): DemoState {
       ...defaultState(),
       ...parsed,
       positions: Array.isArray(parsed.positions) ? parsed.positions : [],
-      orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+      // Earlier demo builds created a second 100% TP when the existing TP
+      // was moved. Keep the newest one per symbol so already-saved browser
+      // state is repaired as soon as this version loads.
+      orders: Array.isArray(parsed.orders)
+        ? removeDuplicateFullTakeProfits(parsed.orders)
+        : [],
       leverage: parsed.leverage ?? {},
       sizing: { ...defaultState().sizing, ...(parsed.sizing ?? {}) },
     };

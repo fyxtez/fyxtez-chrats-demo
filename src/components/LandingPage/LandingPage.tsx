@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import "./LandingPage.css";
 
 const FEATURES = [
@@ -27,6 +28,29 @@ function FyxtezMark() {
 }
 
 function LandingPage() {
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const contactRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isContactOpen) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!contactRef.current?.contains(event.target as Node)) {
+        setIsContactOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsContactOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isContactOpen]);
+
   return (
     <main className="landing-page">
       <div className="landing-grid" aria-hidden="true" />
@@ -97,6 +121,49 @@ function LandingPage() {
             are used, and no exchange account is connected. This project is a
             product demonstration—not financial advice.
           </p>
+          <div className="landing-live-contact-copy">
+            For live trading and in-app execution on Binance,{
+            " "
+            }<div
+              ref={contactRef}
+              className={`landing-contact ${isContactOpen ? "is-open" : ""}`}
+            >
+              <button
+                type="button"
+                aria-expanded={isContactOpen}
+                aria-haspopup="dialog"
+                onClick={() => setIsContactOpen((current) => !current)}
+              >
+                contact Fyxtez
+              </button>
+              <div className="landing-contact-popup" role="dialog" aria-label="Contact Fyxtez">
+                <div className="landing-contact-header">
+                  <span className="landing-contact-avatar">F</span>
+                  <span>
+                    <strong>Fyxtez</strong>
+                    <small>Live execution inquiries</small>
+                  </span>
+                </div>
+                <div className="landing-contact-links">
+                  <a href="https://t.me/fyxtez" target="_blank" rel="noreferrer">
+                    <span className="landing-contact-channel-icon telegram" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="m20.4 4.1-3 15.2c-.2 1.1-.9 1.3-1.8.8l-4.6-3.4-2.2 2.1c-.2.2-.5.5-.9.5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L5.6 13.3 1 11.8c-1-.3-1-1 .2-1.5L19.1 3.4c.8-.3 1.6.2 1.3.7Z" /></svg>
+                    </span>
+                    <span><small>Telegram</small><b>@fyxtez</b></span>
+                    <span className="landing-contact-arrow">↗</span>
+                  </a>
+                  <a href="mailto:fyxtez@gmail.com">
+                    <span className="landing-contact-channel-icon mail" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M3.5 6.5h17v11h-17zM4 7l8 6 8-6" /></svg>
+                    </span>
+                    <span><small>Email</small><b>fyxtez@gmail.com</b></span>
+                    <span className="landing-contact-arrow">↗</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+            .
+          </div>
         </div>
       </aside>
 

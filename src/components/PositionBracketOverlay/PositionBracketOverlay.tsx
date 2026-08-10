@@ -18,6 +18,7 @@ import {
 import {
   cancelConditionalOrder,
   placeFullStopLoss,
+  repriceReduceOrder,
 } from "../../trading/api/orders";
 import {
   loadSavedStop,
@@ -1062,13 +1063,25 @@ export default function PositionBracketOverlay({
 
     try {
       if (kind === "TAKE_PROFIT") {
-        await executePositionIntent({
-          symbol: currentPosition.symbol,
-          intent: "REDUCE",
-          orderType: "LIMIT",
-          price,
-          reducePct: 100,
-        });
+        const existingOrderId = fullTakeProfitOrderIdRef.current;
+
+        if (existingOrderId) {
+          // Moving an existing full TP must amend that order. Creating a new
+          // reduce order here left the previous TP resting on the book and
+          // therefore rendered both the old and new orange chart lines.
+          await repriceReduceOrder(currentPosition.symbol, existingOrderId, {
+            price,
+            reduce_pct: 100,
+          });
+        } else {
+          await executePositionIntent({
+            symbol: currentPosition.symbol,
+            intent: "REDUCE",
+            orderType: "LIMIT",
+            price,
+            reducePct: 100,
+          });
+        }
 
         // Keep optimisticTakeProfit displayed - it's cleared once the real
         // order price arrives via the fullTakeProfitPrice prop (see effect
