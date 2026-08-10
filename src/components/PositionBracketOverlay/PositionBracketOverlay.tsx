@@ -406,6 +406,36 @@ export default function PositionBracketOverlay({
     };
   }, [symbol]);
 
+  // Order lines live on the canvas and have their own click-move-click flow.
+  // Follow its live full-TP preview directly so the green bracket rectangle
+  // moves on the same frame as the yellow order line, before order polling
+  // has had any chance to confirm the new price.
+  useEffect(() => {
+    const followOrderLinePreview = (event: Event) => {
+      const detail = (event as CustomEvent<{ symbol?: string; price?: number | null }>).detail;
+      if (detail?.symbol?.toUpperCase() !== symbol.toUpperCase()) return;
+
+      const price = detail.price;
+      setOptimisticTakeProfit(
+        typeof price === "number" && Number.isFinite(price) && price > 0
+          ? price
+          : null,
+      );
+    };
+
+    window.addEventListener(
+      "full-take-profit-preview-changed",
+      followOrderLinePreview,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "full-take-profit-preview-changed",
+        followOrderLinePreview,
+      );
+    };
+  }, [symbol]);
+
   // FIX (snap-back bug, take-profit): same root cause as the stop-loss fix
   // below - `fullTakeProfitPrice ?? optimisticTakeProfit` meant that while
   // MOVING an already-placed take-profit, the `??` never reached
@@ -1586,12 +1616,10 @@ export default function PositionBracketOverlay({
   const showStopZone = displayedStopPrice != null && dragKind !== "STOP_LOSS";
   const showStopLine = displayedStopPrice != null && dragKind !== "STOP_LOSS";
 
-  // Once a TP/SL already exists (confirmed or optimistic), its "create"
-  // button on the entry row has served its purpose - moving it further is
-  // done by clicking the TP order line or the SL line directly (then
-  // clicking again to confirm), not by clicking the button again (which
-  // would just start a brand-new, overlapping placement).
-  const showTakeProfitButton = displayedTakeProfitPrice == null;
+  // Keep TP FULL available after the order has been confirmed. The same
+  // interaction reprices the existing full-TP order, so an orders refresh
+  // (for example after editing SL) must not make this control disappear.
+  const showTakeProfitButton = dragKind !== "TAKE_PROFIT";
   const showStopLossButton = displayedStopPrice == null;
 
   // Edge handles are only meaningful once at least one zone actually has
@@ -1704,7 +1732,11 @@ export default function PositionBracketOverlay({
                   className="position-bracket-handle take-profit"
                   disabled={isSubmitting}
                   onPointerDown={(event) => beginDrag(event, "TAKE_PROFIT")}
-                  title="Click, move the mouse, then click again to place full take profit"
+                  title={
+                    displayedTakeProfitPrice == null
+                      ? "Click, move the mouse, then click again to place full take profit"
+                      : "Click, move the mouse, then click again to move full take profit"
+                  }
                 >
                   TP FULL
                 </button>

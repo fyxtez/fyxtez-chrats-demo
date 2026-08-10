@@ -206,6 +206,35 @@
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
+.landing-tutorial-action {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  color: var(--text);
+  background: rgba(18, 23, 32, 0.62);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.landing-tutorial-action:hover {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-color: rgba(245, 166, 35, 0.42);
+}
+
+.landing-tutorial-action:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 4px;
+}
+
 .landing-primary-action:hover {
   transform: translateY(-2px);
   background: #ffb52e;
@@ -626,6 +655,10 @@
   }
 
   .landing-primary-action {
+    width: 100%;
+  }
+
+  .landing-tutorial-action {
     width: 100%;
   }
 

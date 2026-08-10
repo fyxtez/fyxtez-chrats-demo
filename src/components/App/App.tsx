@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import {
   DEFAULT_LINE_COLOR,
@@ -41,6 +41,8 @@ import TradeMenu from "../TradeMenu/TradeMenu";
 import PositionsPanel from "../PositionsPanel/PositionsPanel";
 import UnregisteredSymbolBanner from "../UnregisteredSymbolBanner/UnregisteredSymbolBanner";
 import LandingPage from "../LandingPage/LandingPage";
+import Tutorial from "../Tutorial/Tutorial";
+import type { TutorialStepId } from "../Tutorial/Tutorial";
 
 import "./App.css";
 
@@ -181,6 +183,31 @@ function classifyLimitOrder(
 function TerminalApp() {
   const refs = useChartRefs();
   const coord = useCoordinateMapping(refs);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("tutorial") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [tutorialStepId, setTutorialStepId] = useState<TutorialStepId | null>(null);
+
+  useEffect(() => {
+    if (!isTutorialOpen) return;
+    setIsToolbarCollapsed(false);
+    setIsSettingsOpen(false);
+    setIsOrdersOpen(false);
+
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("tutorial")) {
+        url.searchParams.delete("tutorial");
+        window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      }
+    } catch {
+      // The tutorial still works if URL cleanup is unavailable.
+    }
+  }, [isTutorialOpen]);
 
   // The one piece of state everything below is scoped to. Renamed from
   // the old hardcoded `SYMBOL` constant to `currentSymbol` (rather than
@@ -447,14 +474,31 @@ function TerminalApp() {
     // intent + reducePct 100 / remainingPct 0) instead of an orderId
     // lookup, means the fresh price is used the entire time regardless
     // of whether openOrdersApi.orders has caught up yet.
-    const pendingDrawing = drawingsApi.drawings.find(
-      (drawing) =>
-        drawing.type === "horizontal" &&
-        drawing.orderPricePending &&
-        (drawing.orderIntent === "REDUCE" ||
-          drawing.clientOrderId?.startsWith("fe-red-") === true) &&
-        (drawing.orderReducePct === 100 || drawing.orderRemainingPct === 0),
-    );
+    const pendingDrawing = drawingsApi.drawings.find((drawing) => {
+      if (
+        drawing.type !== "horizontal" ||
+        !drawing.orderPricePending ||
+        drawing.orderSymbol?.toUpperCase() !== currentSymbol.toUpperCase() ||
+        !(
+          drawing.orderIntent === "REDUCE" ||
+          drawing.clientOrderId?.startsWith("fe-red-") === true
+        )
+      ) {
+        return false;
+      }
+
+      // Older/runtime-created order drawings do not always carry the parsed
+      // percentage fields. Their clientOrderId still contains the canonical
+      // p100-r0 metadata, so use it as a fallback while the yellow order line
+      // is moving. This keeps the green TP zone locked to the same live price.
+      const metadata = parseReduceMetadata(drawing.clientOrderId);
+      return (
+        drawing.orderReducePct === 100 ||
+        drawing.orderRemainingPct === 0 ||
+        metadata.reducePct === 100 ||
+        metadata.remainingPct === 0
+      );
+    });
 
     if (pendingDrawing?.type === "horizontal") {
       return Number.isFinite(pendingDrawing.price) && pendingDrawing.price > 0
@@ -463,6 +507,10 @@ function TerminalApp() {
     }
 
     const fullTakeProfit = openOrdersApi.orders.find((order) => {
+      if (order.symbol.toUpperCase() !== currentSymbol.toUpperCase()) {
+        return false;
+      }
+
       if (!(order.type === "LIMIT" || order.origType === "LIMIT")) {
         return false;
       }
@@ -481,10 +529,14 @@ function TerminalApp() {
 
     const price = Number(fullTakeProfit.price);
     return Number.isFinite(price) && price > 0 ? price : null;
-  }, [openOrdersApi.orders, drawingsApi.drawings]);
+  }, [openOrdersApi.orders, drawingsApi.drawings, currentSymbol]);
 
   const fullTakeProfitOrderId = useMemo(() => {
     const fullTakeProfit = openOrdersApi.orders.find((order) => {
+      if (order.symbol.toUpperCase() !== currentSymbol.toUpperCase()) {
+        return false;
+      }
+
       if (!(order.type === "LIMIT" || order.origType === "LIMIT")) {
         return false;
       }
@@ -764,6 +816,16 @@ function TerminalApp() {
   const [positionsPanelHeight, setPositionsPanelHeight] = useState(
     readStoredPositionsPanelHeight,
   );
+
+  const handleTutorialStepChange = useCallback((stepId: TutorialStepId) => {
+    setTutorialStepId(stepId);
+    setIsOrdersOpen(stepId === "orders");
+    setIsSettingsOpen(stepId === "options");
+    setIsHotkeysOpen(stepId === "hotkeys");
+
+    setIsToolbarCollapsed(stepId !== "drawing");
+
+  }, []);
 
   const handleSettingsPanelWidthChange = (nextWidth: number) => {
     const viewportMax = Math.max(
@@ -1083,6 +1145,8 @@ function TerminalApp() {
         backendConnection={backendConnection}
         websocketConnection={websocketConnection}
         marketConnection={marketData.marketConnection}
+        onStartTutorial={() => setIsTutorialOpen(true)}
+        isTutorialSymbolMenuOpen={isTutorialOpen && tutorialStepId === "symbols"}
       />
 
       <ChartTabs
@@ -1308,6 +1372,17 @@ function TerminalApp() {
           leverageError={tradeMenuApi.leverageError}
           onLeverageChange={tradeMenuApi.changeLeverage}
           onLeverageCommit={tradeMenuApi.commitLeverage}
+        />
+      )}
+
+      {isTutorialOpen && (
+        <Tutorial
+          onClose={() => {
+            setIsTutorialOpen(false);
+            setTutorialStepId(null);
+            setIsHotkeysOpen(false);
+          }}
+          onStepChange={handleTutorialStepChange}
         />
       )}
 

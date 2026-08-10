@@ -144,7 +144,8 @@
 }
 
 .orders-button,
-.options-button {
+.options-button,
+.tutorial-button {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -161,7 +162,8 @@
 }
 
 .orders-button:hover,
-.options-button:hover {
+.options-button:hover,
+.tutorial-button:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
@@ -175,6 +177,19 @@
 .options-icon {
   font-size: 14.5px;
   line-height: 1;
+}
+
+.tutorial-button > span {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  color: var(--amber);
+  border: 1px solid rgba(245, 166, 35, 0.55);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 @media (max-width: 720px) {
@@ -209,8 +224,14 @@
   }
 
   .orders-button,
-.options-button {
+.options-button,
+.tutorial-button {
     padding: 6px 8px;
+  }
+
+  .tutorial-button {
+    font-size: 0;
+    gap: 0;
   }
   .orders-button .orders-icon {
     font-size: 14.5px;

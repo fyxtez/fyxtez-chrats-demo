@@ -7,12 +7,15 @@ const STORAGE_KEY = "fyxtez-demo-trading-state-v1";
 const STARTING_BALANCE = 10_000;
 
 type DemoState = {
+  schemaVersion: number;
   balance: number;
   positions: OpenPosition[];
   orders: OpenOrder[];
   leverage: Record<string, number>;
   sizing: SizingConfig;
 };
+
+const DEMO_STATE_SCHEMA_VERSION = 2;
 
 function removeDuplicateFullTakeProfits(orders: OpenOrder[]): OpenOrder[] {
   const newestFullTakeProfitBySymbol = new Map<string, OpenOrder>();
@@ -42,6 +45,7 @@ const fallbackPrices: Record<string, number> = {
 };
 
 const defaultState = (): DemoState => ({
+  schemaVersion: DEMO_STATE_SCHEMA_VERSION,
   balance: STARTING_BALANCE,
   positions: [],
   orders: [],
@@ -49,20 +53,56 @@ const defaultState = (): DemoState => ({
   sizing: { margin_pct: 0.02, leverage_safety: 0.98, max_leverage: 50 },
 });
 
+/**
+ * Demo builds before schema v2 silently created a 100% take-profit exactly
+ * 2% away from every new position. Remove only that recognisable legacy
+ * order shape so existing browsers are repaired without deleting limits or
+ * take-profits the user actually placed at another price.
+ */
+function removeLegacyAutomaticTakeProfits(
+  orders: OpenOrder[],
+  positions: OpenPosition[],
+): OpenOrder[] {
+  return orders.filter((order) => {
+    if (!order.reduceOnly || !/^fe-red-p100-r0-/i.test(order.clientOrderId)) {
+      return true;
+    }
+
+    const position = positions.find((item) => item.symbol === order.symbol);
+    if (!position || !Number.isFinite(position.entry_price) || position.entry_price <= 0) {
+      return true;
+    }
+
+    const expectedPrice = position.side === "LONG"
+      ? position.entry_price * 1.02
+      : position.entry_price * 0.98;
+    const orderPrice = Number(order.price);
+    const tolerance = Math.max(1e-8, expectedPrice * 1e-6);
+    return !Number.isFinite(orderPrice) || Math.abs(orderPrice - expectedPrice) > tolerance;
+  });
+}
+
 function load(): DemoState {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<DemoState> | null;
     if (!parsed) return defaultState();
+    const positions = Array.isArray(parsed.positions) ? parsed.positions : [];
+    const deduplicatedOrders = Array.isArray(parsed.orders)
+      ? removeDuplicateFullTakeProfits(parsed.orders)
+      : [];
+    const orders = (parsed.schemaVersion ?? 0) < DEMO_STATE_SCHEMA_VERSION
+      ? removeLegacyAutomaticTakeProfits(deduplicatedOrders, positions)
+      : deduplicatedOrders;
+
     return {
       ...defaultState(),
       ...parsed,
-      positions: Array.isArray(parsed.positions) ? parsed.positions : [],
+      schemaVersion: DEMO_STATE_SCHEMA_VERSION,
+      positions,
       // Earlier demo builds created a second 100% TP when the existing TP
       // was moved. Keep the newest one per symbol so already-saved browser
       // state is repaired as soon as this version loads.
-      orders: Array.isArray(parsed.orders)
-        ? removeDuplicateFullTakeProfits(parsed.orders)
-        : [],
+      orders,
       leverage: parsed.leverage ?? {},
       sizing: { ...defaultState().sizing, ...(parsed.sizing ?? {}) },
     };
@@ -73,6 +113,7 @@ function load(): DemoState {
 
 let state = load();
 let nextId = Date.now();
+const latestMarketPrices: Record<string, number> = {};
 
 function save(): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
@@ -85,8 +126,9 @@ export function demoId(): string {
 
 export function demoPrice(symbol: string, preferred?: number): number {
   if (Number.isFinite(preferred) && Number(preferred) > 0) return Number(preferred);
-  const position = state.positions.find((item) => item.symbol === symbol.toUpperCase());
-  return position?.mark_price || fallbackPrices[symbol.toUpperCase()] || 100;
+  const normalized = symbol.toUpperCase();
+  const position = state.positions.find((item) => item.symbol === normalized);
+  return latestMarketPrices[normalized] || position?.mark_price || fallbackPrices[normalized] || 100;
 }
 
 export function demoBalance(): number { return state.balance; }
@@ -195,6 +237,21 @@ export function demoOrders(symbol?: string): OpenOrder[] {
 }
 
 export function addDemoOrder(order: OpenOrder): OpenOrder {
+  const isFullTakeProfit =
+    order.reduceOnly && /^fe-red-p100-r0-/i.test(order.clientOrderId ?? "");
+
+  // A position can have only one demo FULL TP. If the UI had stale order
+  // data while the user moved it, treat the new order as a replacement
+  // instead of leaving overlapping TP lines behind.
+  if (isFullTakeProfit) {
+    state.orders = state.orders.filter(
+      (existing) =>
+        existing.symbol.toUpperCase() !== order.symbol.toUpperCase() ||
+        !existing.reduceOnly ||
+        !/^fe-red-p100-r0-/i.test(existing.clientOrderId ?? ""),
+    );
+  }
+
   state.orders.push(order);
   save();
   return { ...order };
@@ -222,38 +279,22 @@ export function clearDemoOrders(symbol?: string): string[] {
 }
 
 function ensureDemoProtection(position: OpenPosition): void {
-  const closeSide = position.side === "LONG" ? "SELL" : "BUY";
   const existingTp = state.orders.find(
-    (order) => order.symbol === position.symbol && order.reduceOnly,
+    (order) =>
+      order.symbol === position.symbol &&
+      order.reduceOnly &&
+      /^fe-red-p100-r0-/i.test(order.clientOrderId),
   );
 
-  if (!existingTp) {
-    const id = demoId();
-    const takeProfit = position.side === "LONG"
-      ? position.entry_price * 1.02
-      : position.entry_price * 0.98;
-    state.orders.push({
-      orderId: id,
-      clientOrderId: `fe-red-p100-r0-${id}`,
-      symbol: position.symbol,
-      side: closeSide,
-      type: "LIMIT",
-      origType: "LIMIT",
-      status: "NEW",
-      price: String(takeProfit),
-      origQty: String(position.quantity),
-      timeInForce: "GTC",
-      executedQty: "0",
-      avgPrice: "0",
-      time: Date.now(),
-      updateTime: Date.now(),
-      reduceOnly: true,
-    });
-  } else {
+  // A plain MARKET entry must not invent a take-profit. If the user has
+  // explicitly placed a reduce-only TP, keep its quantity aligned when the
+  // position is later increased or reduced.
+  if (existingTp) {
     existingTp.origQty = String(position.quantity);
     existingTp.updateTime = Date.now();
   }
 
+  const closeSide = position.side === "LONG" ? "SELL" : "BUY";
   const savedStop = loadSavedStop(position.symbol);
   if (!savedStop || savedStop.side !== closeSide) {
     const stop = position.side === "LONG"
@@ -275,6 +316,7 @@ function ensureDemoProtection(position: OpenPosition): void {
 export function processDemoMarketPrice(symbol: string, price: number): void {
   if (!Number.isFinite(price) || price <= 0) return;
   const normalized = symbol.toUpperCase();
+  latestMarketPrices[normalized] = price;
   const position = state.positions.find((item) => item.symbol === normalized);
 
   if (position) {

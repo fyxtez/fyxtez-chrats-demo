@@ -19,6 +19,8 @@ type SymbolSwitcherProps = {
   onRegistryChanged: () => Promise<void>;
   /** Closes that symbol's chart tab (if open) once it's actually been deleted from the registry. */
   onSymbolDeleted: (symbol: TradingSymbol) => void;
+  /** Keeps the symbol list open while the tutorial is explaining it. */
+  tutorialOpen?: boolean;
 };
 
 const SOURCE_LABELS: Record<ExchangeSource, string> = {
@@ -172,7 +174,7 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegistryChanged, onSymbolDeleted }: SymbolSwitcherProps) {
+export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegistryChanged, onSymbolDeleted, tutorialOpen = false }: SymbolSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -190,10 +192,12 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
 
   useEffect(() => { savePinnedSymbols(pinnedSymbols); }, [pinnedSymbols]);
   useEffect(() => { saveSortMode(sortMode); }, [sortMode]);
+  useEffect(() => { setIsOpen(tutorialOpen); }, [tutorialOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
+      if (tutorialOpen) return;
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setIsOpen(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setIsOpen(false); };
@@ -203,7 +207,7 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
       window.removeEventListener("pointerdown", handlePointerDown, true);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, tutorialOpen]);
 
   /*
    * Pinned section (always first, in this fixed order) + the remainder

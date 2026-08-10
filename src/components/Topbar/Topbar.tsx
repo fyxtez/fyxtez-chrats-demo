@@ -43,6 +43,9 @@ type TopbarProps = {
    * from the UI alone.
    */
   marketConnection: ConnectionState;
+  /** Opens the guided terminal walkthrough. */
+  onStartTutorial: () => void;
+  isTutorialSymbolMenuOpen: boolean;
 };
 
 const intervalGroups: { label: string; values: readonly Interval[] }[] = [
@@ -68,6 +71,8 @@ export default function Topbar({
   backendConnection,
   websocketConnection,
   marketConnection,
+  onStartTutorial,
+  isTutorialSymbolMenuOpen,
 }: TopbarProps) {
   const [isIntervalMenuOpen, setIsIntervalMenuOpen] = useState(false);
   const intervalMenuRef = useRef<HTMLDivElement | null>(null);
@@ -105,6 +110,7 @@ export default function Topbar({
         onChangeSymbol={onChangeSymbol}
         onRegistryChanged={onSymbolRegistryChanged}
         onSymbolDeleted={onSymbolDeleted}
+        tutorialOpen={isTutorialSymbolMenuOpen}
       />
 
       <div className="buttons desktop-timeframe-buttons">
@@ -171,6 +177,19 @@ export default function Topbar({
       <div className="demo-mode-badge" title="Paper trading only — no real orders or exchange account">
         DEMO · PAPER TRADING
       </div>
+
+      <button
+        className="tutorial-button"
+        type="button"
+        title="Start terminal tutorial"
+        onClick={(event) => {
+          event.stopPropagation();
+          onStartTutorial();
+        }}
+      >
+        <span aria-hidden="true">?</span>
+        Tutorial
+      </button>
 
       <div className="topbar-connection-group" aria-label="Connection status">
         <div

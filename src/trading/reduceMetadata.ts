@@ -9,6 +9,7 @@
  * Formats handled:
  *   fe-red-<reducePct>-l<remainingPct>-...   (current)
  *   fe-red-<reducePct>-...                   (legacy, no remainingPct)
+ *   fe-red-p<reducePct>-r<remainingPct>-...  (self-hosted demo)
  */
 export type ReduceMetadata = {
   reducePct?: number;
@@ -19,6 +20,29 @@ export function parseReduceMetadata(
   clientOrderId?: string | null,
 ): ReduceMetadata {
   if (!clientOrderId) return {};
+
+  // The browser-local demo store uses explicit p/r prefixes. Without this
+  // branch its full TP remains visible as an order line, but stops being
+  // recognised as the position's persistent TP once the optimistic preview
+  // expires (most noticeable after leaving and returning to the browser tab).
+  const demo = /^fe-red-p(\d{1,3})-r(\d{1,3})-/.exec(clientOrderId);
+  if (demo) {
+    const reducePct = Number(demo[1]);
+    const remainingPct = Number(demo[2]);
+
+    return {
+      reducePct:
+        Number.isFinite(reducePct) && reducePct >= 1 && reducePct <= 100
+          ? reducePct
+          : undefined,
+      remainingPct:
+        Number.isFinite(remainingPct) &&
+        remainingPct >= 0 &&
+        remainingPct <= 100
+          ? remainingPct
+          : undefined,
+    };
+  }
 
   const match = /^fe-red-(\d{1,3})-l(\d{1,3})-/.exec(clientOrderId);
   if (match) {

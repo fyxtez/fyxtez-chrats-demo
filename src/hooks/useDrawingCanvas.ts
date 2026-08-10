@@ -57,6 +57,32 @@ function isOrderDrawing(drawing: Drawing): boolean {
   );
 }
 
+function isFullTakeProfitDrawing(drawing: HorizontalDrawing): boolean {
+  const isReduceOrder =
+    drawing.orderIntent === "REDUCE" ||
+    drawing.clientOrderId?.startsWith("fe-red-") === true;
+
+  return (
+    isReduceOrder &&
+    (drawing.orderReducePct === 100 ||
+      drawing.orderRemainingPct === 0 ||
+      /^fe-red-p100-r0-/i.test(drawing.clientOrderId ?? ""))
+  );
+}
+
+function publishFullTakeProfitPreview(
+  drawing: HorizontalDrawing,
+  price: number | null,
+): void {
+  if (!isFullTakeProfitDrawing(drawing) || !drawing.orderSymbol) return;
+
+  window.dispatchEvent(
+    new CustomEvent("full-take-profit-preview-changed", {
+      detail: { symbol: drawing.orderSymbol.toUpperCase(), price },
+    }),
+  );
+}
+
 /** How long the mouse has to sit still over a drawing before the info popup appears. */
 const HOVER_INFO_DELAY_MS = 500;
 
@@ -1351,6 +1377,7 @@ const markerScaleByInterval: Partial<
 
     if (before) {
       drawingsApi.replaceDrawingWithoutHistory(before.id, before);
+      publishFullTakeProfitPreview(before, null);
     }
 
     armedOrderLineBeforeRef.current = null;
@@ -1373,6 +1400,7 @@ const markerScaleByInterval: Partial<
         ...before,
         orderPricePending: false,
       });
+      publishFullTakeProfitPreview(before, null);
       return;
     }
 
@@ -1380,9 +1408,7 @@ const markerScaleByInterval: Partial<
     const isReduceOrder =
       before.orderIntent === "REDUCE" ||
       before.clientOrderId?.startsWith("fe-red-") === true;
-    const isFullTakeProfit =
-      isReduceOrder &&
-      (before.orderReducePct === 100 || before.orderRemainingPct === 0);
+    const isFullTakeProfit = isFullTakeProfitDrawing(before);
     const orderLabel = isFullTakeProfit
       ? "Full TP"
       : isReduceOrder
@@ -1494,6 +1520,7 @@ const markerScaleByInterval: Partial<
           ...before,
           orderPricePending: false,
         });
+        publishFullTakeProfitPreview(before, null);
         window.dispatchEvent(new Event("orders-state-changed"));
 
         tradeMenuApi.setTradeToast({
@@ -1552,6 +1579,7 @@ const markerScaleByInterval: Partial<
         price: nextPrice,
         orderPricePending: true,
       });
+      publishFullTakeProfitPreview(current, nextPrice);
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
@@ -2487,13 +2515,16 @@ const markerScaleByInterval: Partial<
     }
 
     if (original.type === "horizontal") {
-      drawingsApi.replaceDrawingWithoutHistory(original.id, {
+      const moved = {
         ...original,
         price: original.price + priceDelta,
         ...(original.orderId !== undefined
           ? { orderPricePending: true }
           : {}),
-      });
+      } as HorizontalDrawing;
+
+      drawingsApi.replaceDrawingWithoutHistory(original.id, moved);
+      publishFullTakeProfitPreview(moved, moved.price);
 
       return;
     }

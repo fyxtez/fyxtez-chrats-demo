@@ -96,6 +96,9 @@ function LandingPage() {
               <path d="M4 10h11m-4-4 4 4-4 4" />
             </svg>
           </a>
+          <a className="landing-tutorial-action" href="/BTC?tutorial=1">
+            How it works
+          </a>
           <span className="landing-action-note">No sign-up required</span>
         </div>
       </section>

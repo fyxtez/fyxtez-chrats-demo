@@ -1,0 +1,170 @@
+.tutorial-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  font-family: var(--font-ui);
+}
+
+.tutorial-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: default;
+}
+
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 1px solid rgba(245, 166, 35, 0.9);
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 9999px rgba(3, 5, 9, 0.78),
+    0 0 0 4px rgba(245, 166, 35, 0.12),
+    0 0 26px rgba(245, 166, 35, 0.28);
+  pointer-events: none;
+  transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease;
+}
+
+.tutorial-card {
+  position: fixed;
+  z-index: 2;
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  color: var(--text);
+  background: #121720;
+  border: 1px solid #344052;
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+}
+
+.tutorial-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tutorial-card-topline span:last-child {
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+
+.tutorial-card h2 {
+  margin: 12px 0 8px;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.tutorial-card p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.tutorial-progress {
+  display: flex;
+  gap: 5px;
+  margin-top: 18px;
+}
+
+.tutorial-progress span {
+  width: 18px;
+  height: 2px;
+  background: var(--border-strong);
+  border-radius: 2px;
+}
+
+.tutorial-progress span.active {
+  width: 32px;
+  background: var(--amber);
+}
+
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.tutorial-actions > div {
+  display: flex;
+  gap: 7px;
+}
+
+.tutorial-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tutorial-actions button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.tutorial-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tutorial-actions .tutorial-skip {
+  padding-inline: 0;
+  color: var(--text-faint);
+  border-color: transparent;
+}
+
+.tutorial-actions .tutorial-next {
+  min-width: 72px;
+  color: #090c11;
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.tutorial-actions .tutorial-next:hover:not(:disabled) {
+  color: #090c11;
+  background: #ffb52e;
+}
+
+@media (max-width: 720px) {
+  .tutorial-card {
+    padding: 17px;
+  }
+
+  .tutorial-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .tutorial-actions > div {
+    justify-content: flex-end;
+  }
+
+  .tutorial-actions .tutorial-skip {
+    align-self: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-spotlight {
+    transition: none;
+  }
+}
