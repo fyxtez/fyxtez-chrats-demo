@@ -1,0 +1,69 @@
+.hotkeys-popup {
+  left: 62px;
+  bottom: 18px;
+  z-index: 11000;
+  width: 320px;
+  padding: 14px;
+}
+.hotkeys-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.hotkeys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hotkeys-list > div {
+  display: grid;
+  /*
+   * auto (not a fixed px) for every kbd column: each row here is its OWN
+   * independent grid (this selector applies `display: grid` per-row, not
+   * to one shared parent grid), so there's no cross-row alignment being
+   * lost by doing this - but a fixed px width previously meant any label
+   * wider than that number (e.g. "Wheel", "Drag") just overflowed its
+   * column's box instead of the column growing to fit it.
+   */
+  grid-template-columns: auto 12px auto 1fr;
+  align-items: center;
+  min-height: 26px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+.hotkeys-list > div:nth-last-child(-n + 2) {
+  grid-template-columns: auto 1fr;
+}
+.hotkeys-list span {
+  margin-left: 8px;
+  color: var(--text);
+  /*
+   * Grid items default to a min-width of "auto" (their content's natural,
+   * unwrapped width), which overrides the 1fr track and lets long text
+   * push the whole row - and the fixed-width popup - wider than intended
+   * instead of wrapping. min-width: 0 lets the column actually shrink to
+   * its 1fr share and wrap normally within it.
+   */
+  min-width: 0;
+}
+.hotkeys-list kbd {
+  display: inline-flex;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}

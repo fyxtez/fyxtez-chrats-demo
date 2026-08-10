@@ -1,0 +1,173 @@
+.chart-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.chart {
+  width: 100%;
+  height: 100%;
+  transition: opacity 120ms ease;
+}
+
+.drawing-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.drawing-canvas.drawings-hidden {
+  visibility: hidden;
+}
+
+.chart-wrap.tool-pen,
+.chart-wrap.tool-text,
+.chart-wrap.tool-trend,
+.chart-wrap.tool-box,
+.chart-wrap.tool-vertical,
+.chart-wrap.tool-horizontal,
+.chart-wrap.tool-ruler {
+  cursor: crosshair;
+}
+.chart-wrap.tool-cursor.hovering-drawing {
+  cursor: pointer;
+}
+
+/*
+ * Horizontal (price) lines - order lines (limit/reduce/TP) and plain
+ * horizontal drawings - only ever move vertically when dragged, exactly
+ * like the stop-loss line (a separate DOM element in
+ * PositionBracketOverlay that already hardcodes cursor: ns-resize on its
+ * own grab strip). This rule is declared after .hovering-drawing above so
+ * it wins the tie on specificity, giving these the same ns-resize cursor
+ * instead of the generic pointer other drawing types (trend/box/pen/
+ * vertical) keep.
+ */
+.chart-wrap.tool-cursor.hovering-horizontal-drawing {
+  cursor: ns-resize;
+}
+
+.chart-loading {
+  opacity: 0;
+}
+.chart-ready {
+  opacity: 1;
+}
+
+.pending-order-tooltip {
+  position: absolute;
+  z-index: 230;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * Shown in the canvas's top-left corner when the drawing toolbar has
+ * been collapsed (see DrawingToolbar's "«" button / App.tsx's
+ * isToolbarCollapsed state). Brings the toolbar back.
+ */
+.toolbar-reveal-button {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 210;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15.5px;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.toolbar-reveal-button:hover {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.4);
+}
+
+.temporary-trade-price-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 215;
+  height: 0;
+  border-top: 2px dashed rgb(184 192 207 / 90%);
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 70%));
+}
+
+.temporary-trade-price-label {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  min-width: 82px;
+  padding: 3px 9px;
+  border: 1px solid rgb(184 192 207 / 58%);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 40%);
+  color: rgb(226 232 240);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+}
+/* Countdown and chart context remain separate components, but share one
+ * flex row so the active drawing set always starts a clear distance after
+ * the countdown, regardless of the countdown label width. */
+.chart-top-context-row {
+  position: absolute;
+  top: 10px;
+  left: 50px;
+  z-index: 210;
+  max-width: calc(100% - 60px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.chart-top-context-row > * {
+  pointer-events: auto;
+}
+
+
+.chart-text-editor {
+  position: absolute;
+  z-index: 240;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 1px solid var(--amber);
+  outline: none;
+  background: rgb(11 14 20 / 72%);
+  box-shadow: 0 0 0 1px rgb(245 166 35 / 18%);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  line-height: 1;
+  text-align: left;
+}

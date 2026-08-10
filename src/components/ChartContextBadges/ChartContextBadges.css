@@ -1,0 +1,151 @@
+.chart-context-badges {
+  z-index: 209;
+  min-width: 0;
+  max-width: calc(100vw - 150px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.current-day-badge,
+.active-drawing-set-badge {
+  height: 30px;
+  max-width: 180px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex: 0 1 auto;
+  border: 1px solid rgba(245, 166, 35, 0.34);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.current-day-badge {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+.chart-tags {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chart-tags::-webkit-scrollbar {
+  display: none;
+}
+
+.chart-tag {
+  height: 30px;
+  min-width: 52px;
+  max-width: 210px;
+  padding: 0 4px 0 9px;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  transition: color 100ms ease, background 100ms ease;
+}
+
+.chart-tag:hover,
+.chart-tag:focus-within,
+.chart-tag.active {
+  background: var(--amber-soft);
+}
+
+.chart-tag-input {
+  box-sizing: border-box;
+  height: 30px;
+  min-width: 28px;
+  max-width: 168px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chart-tag:hover .chart-tag-input,
+.chart-tag:focus-within .chart-tag-input,
+.chart-tag.active .chart-tag-input {
+  color: var(--text);
+}
+
+.chart-tag-delete {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.chart-tag-delete:hover {
+  background: rgb(255 255 255 / 7%);
+  color: var(--danger, #ff6b7a);
+}
+
+.chart-tag-add {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: rgb(13 16 23 / 92%);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.chart-tag-add:hover {
+  border-color: rgba(245, 166, 35, 0.45);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+@media (max-width: 720px) {
+  .chart-context-badges {
+    max-width: calc(100vw - 140px);
+  }
+
+  .current-day-badge,
+.active-drawing-set-badge {
+    max-width: 110px;
+  }
+
+  .chart-tag-input {
+    max-width: 100px;
+  }
+}
