@@ -195,15 +195,33 @@ export default function Tutorial({ onClose, onStepChange }: TutorialProps) {
       };
     }
 
+    /*
+     * FIX (tutorial card cut off on mobile): the CSS width is
+     * `min(360px, calc(100vw - 32px))` (see Tutorial.css) so the card
+     * shrinks to fit narrow screens, but the clamp math below used to
+     * assume a flat TOOLTIP_WIDTH=360 regardless. On any screen
+     * <= 376px wide, `window.innerWidth - TOOLTIP_WIDTH - GUTTER` goes
+     * negative - and since that was used as the *upper* bound of
+     * `Math.min(upperBound, Math.max(GUTTER, left))`, the negative
+     * upper bound won outright, pushing the card off-screen to the
+     * left by however much it lost, cropping the first character or so
+     * of every line. Deriving the effective width the same way the CSS
+     * does keeps the two in sync, so the upper bound can never fall
+     * below GUTTER.
+     */
+    const effectiveWidth = Math.min(
+      TOOLTIP_WIDTH,
+      window.innerWidth - VIEWPORT_GUTTER * 2,
+    );
     const clampLeft = (left: number) => Math.min(
-      window.innerWidth - TOOLTIP_WIDTH - VIEWPORT_GUTTER,
+      window.innerWidth - effectiveWidth - VIEWPORT_GUTTER,
       Math.max(VIEWPORT_GUTTER, left),
     );
     const clampTop = (top: number) => Math.min(
       window.innerHeight - TOOLTIP_ESTIMATED_HEIGHT - VIEWPORT_GUTTER,
       Math.max(VIEWPORT_GUTTER, top),
     );
-    const centeredLeft = clampLeft(rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2);
+    const centeredLeft = clampLeft(rect.left + rect.width / 2 - effectiveWidth / 2);
 
     if (step.placement === "center") {
       return {
@@ -215,13 +233,13 @@ export default function Tutorial({ onClose, onStepChange }: TutorialProps) {
 
     if (step.placement === "right") {
       const preferredLeft = rect.left + rect.width + 16;
-      if (preferredLeft + TOOLTIP_WIDTH <= window.innerWidth - VIEWPORT_GUTTER) {
+      if (preferredLeft + effectiveWidth <= window.innerWidth - VIEWPORT_GUTTER) {
         return { left: preferredLeft, top: clampTop(rect.top + 24) };
       }
     }
 
     if (step.placement === "left") {
-      const preferredLeft = rect.left - TOOLTIP_WIDTH - 16;
+      const preferredLeft = rect.left - effectiveWidth - 16;
       if (preferredLeft >= VIEWPORT_GUTTER) {
         return { left: preferredLeft, top: clampTop(rect.top + rect.height / 2 - TOOLTIP_ESTIMATED_HEIGHT / 2) };
       }

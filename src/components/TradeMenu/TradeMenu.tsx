@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSymbolInfo } from "../../config/symbols";
 import type { PendingTradeAction } from "../../hooks/useTradeMenu";
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import type { PositionSide } from "../../trading/api/positions";
 import type { TradeMenuState, TradeOrderType, TradeSide } from "../../trading/types";
+import { useClampedMenuPosition } from "../../hooks/useClampedMenuPosition";
 import "../../styles/floatingPanel.css";
 import "./TradeMenu.css";
 
@@ -166,10 +167,22 @@ export default function TradeMenu(props: TradeMenuProps) {
     maximumFractionDigits: 8,
   });
 
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  // Same off-screen-menu problem as ContextMenu (see that component and
+  // useClampedMenuPosition for the full explanation) - the trade menu
+  // opens at the raw double-click/tap coordinate with no awareness of
+  // its own size, so it needs the same viewport clamp.
+  const clampedPosition = useClampedMenuPosition(
+    menuRef,
+    tradeMenu.x,
+    tradeMenu.y,
+  );
+
   return (
     <div
+      ref={menuRef}
       className="trade-menu"
-      style={{ left: tradeMenu.x, top: tradeMenu.y }}
+      style={{ left: clampedPosition.left, top: clampedPosition.top }}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
     >

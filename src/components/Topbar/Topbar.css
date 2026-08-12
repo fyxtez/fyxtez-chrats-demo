@@ -196,6 +196,26 @@
   .topbar {
     gap: 8px;
     padding: 0 8px;
+    /*
+     * FIX (mobile: Tutorial/connection-status/Orders/Options buttons
+     * invisible and unreachable): this row's children (demo badge,
+     * tutorial button, connection-status group, Orders, Options) are
+     * all flex-shrink: 0 and never wrapped, so on a narrow screen they
+     * simply ran past the right edge of the viewport with no way to
+     * scroll to them - the row itself never had overflow handling of
+     * its own. Making the row horizontally scrollable keeps every
+     * button reachable via a swipe instead of silently clipping them.
+     */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar::-webkit-scrollbar {
+    display: none;
+  }
+  .topbar > * {
+    flex-shrink: 0;
   }
   .symbol {
     font-size: 13.5px;

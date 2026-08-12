@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { intervals, type Interval } from "../../config/constants";
 import type { ContextMenuState, Drawing } from "../../types/drawing";
+import { useClampedMenuPosition } from "../../hooks/useClampedMenuPosition";
 import "../../styles/floatingPanel.css";
 import "./ContextMenu.css";
 
@@ -151,10 +152,22 @@ export default function ContextMenu({
   const [confirmingTimeframe, setConfirmingTimeframe] =
     useState<Interval | null>(null);
 
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  // Keeps the menu fully on-screen regardless of where it was opened -
+  // without this, a long-press near the right/bottom edge of a phone
+  // screen opens a menu that's partially cut off with no way to reach
+  // the hidden buttons (see the mobile bug report this fixes).
+  const clampedPosition = useClampedMenuPosition(
+    menuRef,
+    contextMenu.x,
+    contextMenu.y,
+  );
+
   return (
     <div
+      ref={menuRef}
       className={`context-menu ${isDrawingMenu ? "context-menu-drawing" : "context-menu-chart"}`}
-      style={{ left: contextMenu.x, top: contextMenu.y }}
+      style={{ left: clampedPosition.left, top: clampedPosition.top }}
       onClick={(event) => event.stopPropagation()}
     >
       {isDrawingMenu ? (

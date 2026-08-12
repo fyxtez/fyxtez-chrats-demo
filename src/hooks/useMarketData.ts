@@ -557,6 +557,27 @@ export function useMarketData(refs: ChartRefs, symbol: string) {
     // the same closure for the lifetime of this effect run.
     let pollLive: () => Promise<void> = async () => {};
 
+    /**
+     * Polls (via rAF, capped at ~30 frames / half a second) until the
+     * chart's own container element has a real, non-zero size before
+     * running `callback`. See the "mobile first-load price axis stuck
+     * at 1" fix below for why this matters - locking the price axis'
+     * autoScale off while the container is still mid-layout freezes it
+     * onto a degenerate default range that a later resize never
+     * revisits.
+     */
+    function waitForStableContainer(callback: () => void, attempt = 0) {
+      const el = refs.containerRef.current;
+      const hasSize = !!el && el.clientWidth > 0 && el.clientHeight > 0;
+
+      if (hasSize || attempt >= 30) {
+        callback();
+        return;
+      }
+
+      requestAnimationFrame(() => waitForStableContainer(callback, attempt + 1));
+    }
+
     async function load() {
       try {
         const candles = await fetchKlines(interval, 5000, symbol);
@@ -686,13 +707,54 @@ export function useMarketData(refs: ChartRefs, symbol: string) {
               autoScale: true,
             });
 
-            requestAnimationFrame(() => {
+            /*
+             * FIX (mobile first-load price axis stuck at "1"): this used
+             * to freeze autoScale off after a flat two-frame delay. On a
+             * slower/mobile first paint the chart's container can still
+             * be mid-layout (0x0 or not yet its final height) at that
+             * point - freezing autoScale then locks the price axis onto
+             * whatever degenerate default range lightweight-charts falls
+             * back to for a sizeless pane. A later resize fixes the
+             * pixel dimensions but never revisits the price range, since
+             * autoScale is already off by then - so the axis is left
+             * showing that placeholder instead of real prices.
+             *
+             * waitForStableContainer defers the freeze until the
+             * container actually has real dimensions, and the fallback
+             * below recenters directly on the latest close if the fitted
+             * range still doesn't make sense afterwards - belt and
+             * braces against any remaining timing edge case rather than
+             * relying purely on the container size becoming valid in
+             * time.
+             */
+            waitForStableContainer(() => {
               requestAnimationFrame(() => {
                 if (myEpoch !== refs.epochRef.current) return;
 
-                refs.candleRef.current?.priceScale().applyOptions({
-                  autoScale: false,
-                });
+                const priceScale = refs.candleRef.current?.priceScale();
+                if (!priceScale) return;
+
+                priceScale.applyOptions({ autoScale: false });
+
+                const fitted = priceScale.getVisibleRange();
+                const referencePrice =
+                  latest?.close ?? refs.liveMarketPriceRef.current;
+
+                const isDegenerate =
+                  !fitted ||
+                  !(fitted.to > fitted.from) ||
+                  (referencePrice != null &&
+                    referencePrice > 0 &&
+                    (referencePrice < fitted.from * 0.5 ||
+                      referencePrice > fitted.to * 1.5));
+
+                if (isDegenerate && referencePrice != null && referencePrice > 0) {
+                  const padding = referencePrice * 0.05;
+                  priceScale.setVisibleRange({
+                    from: Math.max(0, referencePrice - padding),
+                    to: referencePrice + padding,
+                  });
+                }
               });
             });
           }
