@@ -144,7 +144,19 @@
   top: 10px;
   left: 50px;
   z-index: 210;
-  max-width: calc(100% - 60px);
+  /*
+   * FIX ("tags going over the price"): this used to hardcode a flat 60px
+   * for the reserved price-scale gutter on the right, but that gutter's
+   * real width varies by symbol/price format (e.g. HOLO's "0.0950" vs
+   * BTC's "64,200") and is already tracked live in --pane-inset-right
+   * (set every frame in useDrawingCanvas.ts from the chart's own actual
+   * pane size). A flat assumption that happened to be narrower than the
+   * real gutter let this row's content render underneath the chart's own
+   * price-axis labels instead of stopping short of them. Falls back to
+   * the old 60px if the variable isn't set yet (e.g. first paint, before
+   * the drawing canvas' own first frame has run).
+   */
+  max-width: calc(100% - var(--pane-inset-right, 60px) - 10px);
   display: flex;
   align-items: center;
   gap: 16px;

@@ -78,6 +78,16 @@
   border-color: rgba(245, 166, 35, 0.35);
 }
 
+.tool-button:disabled {
+  cursor: not-allowed;
+  color: var(--text-faint);
+  opacity: 0.35;
+}
+.tool-button:disabled:hover {
+  background: transparent;
+  color: var(--text-faint);
+}
+
 .tool-separator {
   width: 22px;
   flex-shrink: 0;

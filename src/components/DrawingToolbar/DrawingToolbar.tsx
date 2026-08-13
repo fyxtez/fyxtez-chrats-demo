@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import type { DrawingTool } from "../../types/drawing";
+import { useIsMobileViewport } from "../../hooks/useIsMobileViewport";
 import "./DrawingToolbar.css";
 
 type DrawingToolbarProps = {
@@ -46,6 +48,34 @@ export default function DrawingToolbar({
     onSetTool(tool === target ? "cursor" : target);
   };
 
+  /*
+   * Text, pen, trend-line and box drawing don't work well yet on a touch
+   * screen - not enough time to properly rework their pointer handling
+   * for mobile, so they're disabled there for now rather than shipping a
+   * broken interaction. Desktop/mouse users are unaffected.
+   */
+  const isMobile = useIsMobileViewport();
+  const MOBILE_DISABLED_TOOLS: readonly DrawingTool[] = [
+    "text",
+    "pen",
+    "trend",
+    "box",
+  ];
+  const isToolDisabledOnMobile = (target: DrawingTool) =>
+    isMobile && MOBILE_DISABLED_TOOLS.includes(target);
+
+  // If the viewport becomes mobile (or starts that way) while one of
+  // these tools is still active - e.g. it was armed on desktop and the
+  // window was then resized/rotated down to a phone width - fall back to
+  // the cursor instead of leaving a now-disabled tool selected with no
+  // way to toggle it off via its own (now-disabled) button.
+  useEffect(() => {
+    if (isMobile && MOBILE_DISABLED_TOOLS.includes(tool)) {
+      onSetTool("cursor");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, tool]);
+
   return (
     <div
       className={`drawing-panel ${isCollapsed ? "collapsed" : ""}`}
@@ -73,8 +103,13 @@ export default function DrawingToolbar({
 
       <button
         className={`tool-button ${tool === "text" ? "active" : ""}`}
-        title="Text (click chart to place; Alt+C)"
+        title={
+          isToolDisabledOnMobile("text")
+            ? "Text tool isn't available on mobile yet"
+            : "Text (click chart to place; Alt+C)"
+        }
         tabIndex={isCollapsed ? -1 : undefined}
+        disabled={isToolDisabledOnMobile("text")}
         onClick={() => toggleTool("text")}
       >
         T
@@ -82,8 +117,13 @@ export default function DrawingToolbar({
 
       <button
         className={`tool-button ${tool === "pen" ? "active" : ""}`}
-        title="Pen / freehand (click again or press Esc to exit)"
+        title={
+          isToolDisabledOnMobile("pen")
+            ? "Pen tool isn't available on mobile yet"
+            : "Pen / freehand (click again or press Esc to exit)"
+        }
         tabIndex={isCollapsed ? -1 : undefined}
+        disabled={isToolDisabledOnMobile("pen")}
         onClick={() => toggleTool("pen")}
       >
         ✎
@@ -91,8 +131,13 @@ export default function DrawingToolbar({
 
       <button
         className={`tool-button ${tool === "trend" ? "active" : ""}`}
-        title="Trend line (click again or press Esc to exit)"
+        title={
+          isToolDisabledOnMobile("trend")
+            ? "Trend line tool isn't available on mobile yet"
+            : "Trend line (click again or press Esc to exit)"
+        }
         tabIndex={isCollapsed ? -1 : undefined}
+        disabled={isToolDisabledOnMobile("trend")}
         onClick={() => toggleTool("trend")}
       >
         ╱
@@ -100,8 +145,13 @@ export default function DrawingToolbar({
 
       <button
         className={`tool-button ${tool === "box" ? "active" : ""}`}
-        title="Purple box (click again or press Esc to exit)"
+        title={
+          isToolDisabledOnMobile("box")
+            ? "Box tool isn't available on mobile yet"
+            : "Purple box (click again or press Esc to exit)"
+        }
         tabIndex={isCollapsed ? -1 : undefined}
+        disabled={isToolDisabledOnMobile("box")}
         onClick={() => toggleTool("box")}
       >
         ▭

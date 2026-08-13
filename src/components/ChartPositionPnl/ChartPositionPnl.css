@@ -65,8 +65,21 @@
 }
 
 @media (max-width: 720px) {
+  /*
+   * FIX (image 2: PNL/TOTAL cards painting over the countdown/day/tag
+   * row, hiding it completely): both this card and .chart-top-context-row
+   * sit in the same top-10px band, .chart-top-context-row on the left,
+   * this card on the right - fine on a wide desktop pane where there's
+   * a gap between them, but on a narrow phone screen the context row's
+   * content (day badge, drawing-set badge, tags) can genuinely reach
+   * this card's left edge, and since this card has a higher z-index
+   * (225 vs 210) and an opaque-ish background, it rendered on top of
+   * and completely obscured whatever text was underneath instead of
+   * just visually overlapping it. Stacking this card below the context
+   * row instead of beside it removes the collision entirely.
+   */
   .chart-position-pnl {
-    top: 10px;
+    top: 48px;
     right: calc(var(--pane-inset-right, 0px) + 10px);
     min-width: 94px;
     height: 28px;
@@ -74,6 +87,6 @@
   }
 
   .chart-position-pnl--total {
-    top: 44px;
+    top: 84px;
   }
 }

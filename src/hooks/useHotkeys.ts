@@ -33,6 +33,18 @@ function isOrderDrawing(drawing: Drawing): boolean {
 }
 
 /**
+ * Matches DrawingToolbar's own mobile check (see useIsMobileViewport) -
+ * duplicated as a plain function here since this file is outside React
+ * and only needs a one-off read, not a reactive subscription. Guards the
+ * text/pen/trend/box hotkeys below so a Bluetooth keyboard paired to a
+ * phone can't re-enable a tool whose on-screen button is disabled for
+ * exactly that reason (see DrawingToolbar.tsx).
+ */
+function isMobileViewport(): boolean {
+  return window.matchMedia("(max-width: 720px)").matches;
+}
+
+/**
  * Creates a visually offset copy of a drawing.
  *
  * Horizontal movement is one candle to the right. Vertical movement is a
@@ -369,6 +381,7 @@ export function useHotkeys(
 
       if (event.altKey && event.code === "KeyC") {
         event.preventDefault();
+        if (isMobileViewport()) return;
 
         const time = refs.currentTimeRef.current;
         const price = refs.currentPriceRef.current;
@@ -392,18 +405,21 @@ export function useHotkeys(
 
       if (event.altKey && event.code === "KeyT") {
         event.preventDefault();
+        if (isMobileViewport()) return;
         drawingsApi.setTool("trend");
         return;
       }
 
       if (event.altKey && event.code === "KeyN") {
         event.preventDefault();
+        if (isMobileViewport()) return;
         drawingsApi.setTool("pen");
         return;
       }
 
       if (event.altKey && event.code === "KeyB") {
         event.preventDefault();
+        if (isMobileViewport()) return;
         drawingsApi.setTool("box");
         return;
       }
