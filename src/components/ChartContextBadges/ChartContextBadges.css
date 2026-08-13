@@ -2,6 +2,21 @@
   z-index: 209;
   min-width: 0;
   max-width: calc(100vw - 150px);
+  /*
+   * FIX (tags + "+" button spilling onto the price scale): min-width: 0
+   * alone doesn't stop a flex item from growing past this box's own
+   * max-width - the day badge and drawing-set badge inside still had
+   * their own default min-width: auto (= their min-content size, per the
+   * flexbox spec, since plain "overflow: visible" elements never shrink
+   * below their content), so once there wasn't enough room they held
+   * their ground and pushed the tags list's own "+" button out past this
+   * row's right edge instead of everything shrinking to fit. Explicit
+   * overflow: hidden here changes that automatic minimum to 0 for this
+   * box (per the same spec rule), so the whole group genuinely shrinks -
+   * clipping instead of spilling - down to whatever width
+   * .chart-top-context-row actually has available.
+   */
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -31,7 +46,15 @@
 
 
 .current-day-badge {
-  flex: 0 0 auto;
+  /*
+   * Was flex: 0 0 auto (never shrinks). On a tight mobile width that let
+   * this purely-decorative badge hold onto its full size while eating
+   * the space the interactive tag list (and its "+" button) needed to
+   * stay reachable. Letting it shrink/ellipsis like
+   * .active-drawing-set-badge already does gives the interactive part of
+   * the row priority for the space that's actually available.
+   */
+  flex: 0 1 auto;
   color: var(--text-dim);
   border-color: var(--border-strong);
 }
