@@ -30,7 +30,8 @@ function model(symbol: string): BackendSymbol {
 export async function listSymbols(): Promise<BackendSymbol[]> { return readSymbols().map(model); }
 export async function addSymbol(value: string): Promise<AddSymbolResponse> {
   const symbol = canonicalizeTradingSymbol(value);
-  if (!/^[A-Z0-9]{3,24}USDT$/.test(symbol)) throw new Error("Enter a valid USDT symbol, for example ADAUSDT");
+if (!/^[A-Z0-9]{1,24}USDT$/.test(symbol))
+    throw new Error("Enter a valid USDT symbol, for example ADAUSDT");
   try {
     await getSymbolFilters(symbol);
   } catch {
