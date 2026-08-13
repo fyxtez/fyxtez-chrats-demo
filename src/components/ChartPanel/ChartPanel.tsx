@@ -14,6 +14,7 @@ import ChartTimezoneBadge from "../ChartTimezoneBadge/ChartTimezoneBadge";
 import CandleCountdownBadge from "../CandleCountdownBadge/CandleCountdownBadge";
 import ChartContextBadges from "../ChartContextBadges/ChartContextBadges";
 import { useCandleCountdown } from "../../hooks/useCandleCountdown";
+import { useIsMobileViewport } from "../../hooks/useIsMobileViewport";
 import ChartLoader from "../ChartLoader/ChartLoader";
 import ChartPositionPnl from "../ChartPositionPnl/ChartPositionPnl";
 import ChartIndicators from "../ChartIndicators/ChartIndicators";
@@ -348,6 +349,7 @@ export default function ChartPanel({
   onSetTradeToast,
 }: ChartPanelProps) {
   const candleCountdown = useCandleCountdown(lastDataTimeRef, interval);
+  const isMobile = useIsMobileViewport();
 
   /*
    * A stable (never-changing) ref callback, not an inline arrow function -
@@ -615,12 +617,25 @@ export default function ChartPanel({
                 allLabels={candleCountdown.allLabels}
               />
             )}
-            <ChartContextBadges
+            {/*
+             * FIX: the day badge / drawing-set badge / tags row
+             * (ChartContextBadges) kept spilling out past its available
+             * width and overlapping the price scale specifically on
+             * mobile, and two rounds of layout fixes still didn't nail
+             * it down for every phone screen size. Rather than keep
+             * fighting it there and risk shipping another broken mobile
+             * layout, it's mobile-only hidden for now - desktop had
+             * plenty of room and was never actually broken, so it stays
+             * there unchanged.
+             */}
+            {!isMobile && (
+              <ChartContextBadges
                 symbol={symbol}
                 activeDrawingSetName={activeDrawingSetName}
                 showDrawingSetBadge={showDrawingSetBadge}
                 showTags={showChartTags}
               />
+            )}
           </div>
         )}
 
