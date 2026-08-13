@@ -555,7 +555,7 @@ export function useMarketData(refs: ChartRefs, symbol: string) {
     // Declared as `let` (not `const`) so applyCandleUpdate above can
     // reference it before its own definition further down - both live in
     // the same closure for the lifetime of this effect run.
-    let pollLive: () => Promise<void> = async () => {};
+    let pollLive: () => Promise<void> = async () => { };
 
     /**
      * Polls (via rAF, capped at ~30 frames / half a second) until the
@@ -588,8 +588,8 @@ export function useMarketData(refs: ChartRefs, symbol: string) {
 
         const baseCandles = latest
           ? candles.filter(
-              (candle) => Number(candle.time) !== Number(latest.time),
-            )
+            (candle) => Number(candle.time) !== Number(latest.time),
+          )
           : candles;
 
         refs.loadedCandlesRef.current = candles;
@@ -645,6 +645,18 @@ export function useMarketData(refs: ChartRefs, symbol: string) {
               setPricePrecision(filters.pricePrecision);
               pricePrecisionRef.current = filters.pricePrecision;
               setTickSize(filters.tickSize);
+              const chartPrecision = Math.max(
+                displayDecimals,
+                filters.pricePrecision,
+              );
+
+              refs.candleRef.current?.applyOptions({
+                priceFormat: {
+                  type: "price",
+                  precision: chartPrecision,
+                  minMove: Math.pow(10, -chartPrecision),
+                },
+              });
             })
             .catch(() => {
               // Keep the cosmetic chart precision if Binance filters are
