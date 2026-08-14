@@ -453,6 +453,51 @@ export function useDrawingCanvas(
     return null;
   };
 
+  const findTouchOrderMoveHit = (x: number, y: number) => {
+    const chart = refs.chartRef.current;
+    const series = refs.candleRef.current;
+    if (!chart || !series) return null;
+
+    const paneWidth = chart.paneSize().width;
+    const touchLineRadius = 22;
+    const touchLabelPadding = 8;
+
+    /*
+     * FIX (mobile TP line could fall through and pan the chart): the
+     * desktop hit test allows only 8px around a one-pixel order line.
+     * That is too small for a fingertip, and the visible yellow label is
+     * much taller than the line itself. Treat both a 44px-high line band
+     * and the padded label rectangle as the same draggable TP target.
+     */
+    for (
+      let index = refs.drawingsRef.current.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const drawing = refs.drawingsRef.current[index];
+      if (drawing.type !== "horizontal" || !drawing.orderSide) continue;
+
+      const lineY = series.priceToCoordinate(drawing.price);
+      const onLine =
+        lineY != null &&
+        x >= 0 &&
+        x < paneWidth &&
+        Math.abs(y - lineY) <= touchLineRadius;
+
+      const label = getPendingOrderRects(drawing)?.label;
+      const onLabel =
+        label != null &&
+        x >= label.x - touchLabelPadding &&
+        x <= label.x + label.width + touchLabelPadding &&
+        y >= label.y - touchLabelPadding &&
+        y <= label.y + label.height + touchLabelPadding;
+
+      if (onLine || onLabel) return drawing;
+    }
+
+    return null;
+  };
+
   const getTextRect = (drawing: TextDrawing) => {
     // Same model as Box: two REAL chart-space anchors, both converted to
     // screen pixels fresh every frame. This is what makes the box scale
@@ -2211,7 +2256,16 @@ const markerScaleByInterval: Partial<
       return;
     }
 
-    const hit = coord.findDrawingAt(local.x, local.y);
+    /*
+     * FIX (mobile order gesture reliability): prefer the fingertip-sized
+     * TP hit area before generic 8px drawing hit-testing. Once matched,
+     * this pointerdown is prevented below, so lightweight-charts cannot
+     * interpret a small sideways movement as a pane pan into empty data.
+     */
+    const hit =
+      (event.pointerType === "touch"
+        ? findTouchOrderMoveHit(local.x, local.y)
+        : null) ?? coord.findDrawingAt(local.x, local.y);
 
     if (!hit) {
       drawingsApi.setSelectedId(null);
