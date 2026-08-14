@@ -278,6 +278,19 @@
     padding-inline: 5px;
   }
 
+  /*
+   * FIX (mobile: the horizontal scrollbar overlapped the chart tabs):
+   * phones already expose this strip through touch swiping, so hide only
+   * the scrollbar chrome while preserving horizontal scrolling itself.
+   */
+  .chart-tabs-scroll {
+    scrollbar-width: none;
+  }
+
+  .chart-tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   .chart-tab {
     min-width: 116px;
   }

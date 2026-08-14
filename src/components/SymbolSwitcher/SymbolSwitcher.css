@@ -192,6 +192,17 @@
   }
 
   .symbol-switcher-menu {
+    /*
+     * FIX (mobile: symbol dropdown was hidden behind the tabs/chart):
+     * .topbar is horizontally scrollable on phones, which also makes it
+     * an overflow clipping container on the vertical axis. Positioning the
+     * menu against the viewport lets it escape that 46px-tall container;
+     * the higher layer keeps it above the tab strip and chart overlays.
+     */
+    position: fixed;
+    top: 46px;
+    left: 8px;
+    z-index: 600;
     width: 268px;
   }
 
