@@ -331,6 +331,10 @@ export default function PositionBracketOverlay({
   const [message, setMessage] = useState<string | null>(null);
 
   const dragKindRef = useRef<DragKind | null>(null);
+  const placementPointerRef = useRef<{
+    pointerId: number;
+    pointerType: string;
+  } | null>(null);
   const previewPriceRef = useRef<number | null>(null);
   const positionRef = useRef<OpenPosition | null>(null);
   const savedStopRef = useRef<SavedStop | null>(savedStop);
@@ -1058,6 +1062,7 @@ export default function PositionBracketOverlay({
     const currentPosition = positionRef.current;
 
     dragKindRef.current = null;
+    placementPointerRef.current = null;
     setDragKind(null);
     setPreviewPrice(null);
     previewPriceRef.current = null;
@@ -1242,13 +1247,12 @@ export default function PositionBracketOverlay({
     }
   }, [validatePrice, pricePrecision, symbol]);
 
-  // Explicit cancel path for the click-move-click placement flow below.
-  // Since nothing is ever held down during a placement anymore, there's
-  // no "just let go" gesture to abort with - Escape and right-click both
-  // back out of an in-progress TP/SL placement without submitting
-  // anything, restoring things to how they were before the first click.
+  // Explicit cancel path for desktop's click-move-click placement and for
+  // a cancelled mobile pointer gesture. Escape/right-click remain desktop
+  // exits; pointercancel uses the same reset when the OS interrupts touch.
   const cancelDrag = useCallback(() => {
     dragKindRef.current = null;
+    placementPointerRef.current = null;
     setDragKind(null);
     setPreviewPrice(null);
     previewPriceRef.current = null;
@@ -1258,9 +1262,9 @@ export default function PositionBracketOverlay({
   useEffect(() => {
     if (!dragKind) return;
 
-    const handlePointerMove = (event: PointerEvent) => {
+    const updatePreviewFromPointer = (event: PointerEvent) => {
       const rawPrice = getPriceFromClientY(event.clientY);
-      if (rawPrice == null) return;
+      if (rawPrice == null) return false;
 
       const currentPosition = positionRef.current;
       const kind = dragKindRef.current;
@@ -1291,25 +1295,76 @@ export default function PositionBracketOverlay({
       previewPriceRef.current = nextPrice;
       setPreviewPrice(nextPrice);
       setMessage(validatePrice(dragKindRef.current!, nextPrice));
+      return true;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const placementPointer = placementPointerRef.current;
+
+      if (placementPointer?.pointerType === "touch") {
+        if (event.pointerId !== placementPointer.pointerId) return;
+
+        /*
+         * FIX (mobile TP/SL drag also panned the chart): intercept the
+         * active finger before lightweight-charts receives its move. The
+         * TP/SL preview owns this one-pointer gesture until release.
+         */
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      updatePreviewFromPointer(event);
     };
 
     /*
-     * Click-move-click placement, not press-and-hold-drag:
+     * Desktop uses click-move-click placement:
      *
      *   1. The user clicks TP FULL / STOP LOSS (or grabs the existing
      *      stop-loss line) - that pointerdown is what set dragKind and
      *      ran BEFORE this effect exists, so it's never seen here.
      *   2. The mouse is now free to move without any button held; the
      *      preview line/zone above tracks it via handlePointerMove.
-     *   3. The *next* left click anywhere - a fresh pointerdown, since
-     *      the listener below is registered with `once: true` - confirms
+     *   3. The *next* left click anywhere - a fresh pointerdown - confirms
      *      the current preview price and submits the order.
      *
-     * Escape or a right-click cancels instead of confirming.
+     * Touch deliberately differs: press-drag-release is handled below,
+     * because requiring a second tap conflicts with normal phone gestures.
+     * Escape or a right-click still cancels desktop placement.
      */
     const handleConfirmClick = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      // Touch confirms on release below; a second tap is desktop-only UX.
+      if (placementPointerRef.current?.pointerType === "touch") return;
       void finishDrag();
+    };
+
+    const handleTouchRelease = (event: PointerEvent) => {
+      const placementPointer = placementPointerRef.current;
+      if (
+        placementPointer?.pointerType !== "touch" ||
+        event.pointerId !== placementPointer.pointerId
+      ) return;
+
+      /*
+       * FIX (mobile TP/SL confirmation): finger release is the natural
+       * final event for a drag. Use its last Y coordinate, block the chart
+       * from consuming the release, then submit the selected price.
+       */
+      event.preventDefault();
+      event.stopPropagation();
+      updatePreviewFromPointer(event);
+      void finishDrag();
+    };
+
+    const handleTouchCancel = (event: PointerEvent) => {
+      const placementPointer = placementPointerRef.current;
+      if (
+        placementPointer?.pointerType !== "touch" ||
+        event.pointerId !== placementPointer.pointerId
+      ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancelDrag();
     };
 
     const handleCancelKey = (event: KeyboardEvent) => {
@@ -1323,16 +1378,18 @@ export default function PositionBracketOverlay({
       cancelDrag();
     };
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerdown", handleConfirmClick, {
-      once: true,
-    });
+    window.addEventListener("pointermove", handlePointerMove, { capture: true });
+    window.addEventListener("pointerdown", handleConfirmClick, { capture: true });
+    window.addEventListener("pointerup", handleTouchRelease, { capture: true });
+    window.addEventListener("pointercancel", handleTouchCancel, { capture: true });
     window.addEventListener("keydown", handleCancelKey);
     window.addEventListener("contextmenu", handleCancelContextMenu);
 
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerdown", handleConfirmClick);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerdown", handleConfirmClick, true);
+      window.removeEventListener("pointerup", handleTouchRelease, true);
+      window.removeEventListener("pointercancel", handleTouchCancel, true);
       window.removeEventListener("keydown", handleCancelKey);
       window.removeEventListener("contextmenu", handleCancelContextMenu);
     };
@@ -1409,6 +1466,10 @@ export default function PositionBracketOverlay({
     event.stopPropagation();
 
     dragKindRef.current = kind;
+    placementPointerRef.current = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+    };
     setDragKind(kind);
     setMessage(null);
 
@@ -1429,6 +1490,10 @@ export default function PositionBracketOverlay({
     event.stopPropagation();
 
     dragKindRef.current = "STOP_LOSS";
+    placementPointerRef.current = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+    };
     setDragKind("STOP_LOSS");
     setMessage(null);
 

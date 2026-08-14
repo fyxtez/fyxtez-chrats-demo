@@ -231,16 +231,18 @@ export function useDrawingCanvas(
 
   useEffect(() => clearHoverInfoTimer, []);
 
-  // Order lines (limit entries/adds/reduces) get a click-move-click
-  // reprice flow instead of a press-and-hold drag: this is the id of the
-  // order-line drawing currently "armed" for a move (between the first
-  // click that starts it and the second click that confirms it), or null
-  // when nothing is armed. See armOrderLineMove / cancelOrderLineMove /
-  // submitOrderLineMove and the effect below.
+  // Order lines (limit entries/adds/reduces) keep click-move-click repricing
+  // for a mouse, while touch uses press-drag-release. This is the id of the
+  // line currently armed by either interaction; the pointer ref below tells
+  // the effect which confirmation model to use without changing desktop UX.
   const [armedOrderLineId, setArmedOrderLineId] = useState<string | null>(
     null,
   );
   const armedOrderLineBeforeRef = useRef<HorizontalDrawing | null>(null);
+  const armedOrderLinePointerRef = useRef<{
+    pointerId: number;
+    pointerType: string;
+  } | null>(null);
 
   /*
    * Same click-move-click interaction as the order-line reprice flow above,
@@ -1329,8 +1331,12 @@ const markerScaleByInterval: Partial<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const armOrderLineMove = (drawing: HorizontalDrawing) => {
+  const armOrderLineMove = (
+    drawing: HorizontalDrawing,
+    pointer: { pointerId: number; pointerType: string },
+  ) => {
     armedOrderLineBeforeRef.current = cloneDrawing(drawing) as HorizontalDrawing;
+    armedOrderLinePointerRef.current = pointer;
     setArmedOrderLineId(drawing.id);
     drawingsApi.setSelectedId(drawing.id);
     drawingsApi.setContextMenu(null);
@@ -1381,6 +1387,7 @@ const markerScaleByInterval: Partial<
     }
 
     armedOrderLineBeforeRef.current = null;
+    armedOrderLinePointerRef.current = null;
     setArmedOrderLineId(null);
   };
 
@@ -1537,9 +1544,9 @@ const markerScaleByInterval: Partial<
   useEffect(() => {
     if (!armedOrderLineId) return;
 
-    const handlePointerMove = (event: PointerEvent) => {
+    const updateOrderLineFromPointer = (event: PointerEvent): number | null => {
       const wrap = refs.chartWrapRef.current;
-      if (!wrap) return;
+      if (!wrap) return null;
 
       const rect = wrap.getBoundingClientRect();
       const chartPoint = coord.screenToChartPoint(
@@ -1547,13 +1554,13 @@ const markerScaleByInterval: Partial<
         event.clientY - rect.top,
       );
 
-      if (!chartPoint) return;
+      if (!chartPoint) return null;
 
       const current = refs.drawingsRef.current.find(
         (drawing) => drawing.id === armedOrderLineId,
       );
 
-      if (!current || current.type !== "horizontal") return;
+      if (!current || current.type !== "horizontal") return null;
 
       let nextPrice = chartPoint.price;
 
@@ -1580,10 +1587,31 @@ const markerScaleByInterval: Partial<
         orderPricePending: true,
       });
       publishFullTakeProfitPreview(current, nextPrice);
+      return nextPrice;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const armedPointer = armedOrderLinePointerRef.current;
+
+      if (armedPointer?.pointerType === "touch") {
+        if (event.pointerId !== armedPointer.pointerId) return;
+
+        /*
+         * FIX (mobile TP line drag also panned the chart): consume the
+         * active finger's move in capture phase so the chart never sees
+         * a pan gesture while the order line is being repositioned.
+         */
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      updateOrderLineFromPointer(event);
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      // Touch uses drag-and-release below instead of desktop's second click.
+      if (armedOrderLinePointerRef.current?.pointerType === "touch") return;
 
       const before = armedOrderLineBeforeRef.current;
       const current = refs.drawingsRef.current.find(
@@ -1591,11 +1619,49 @@ const markerScaleByInterval: Partial<
       );
 
       armedOrderLineBeforeRef.current = null;
+      armedOrderLinePointerRef.current = null;
       setArmedOrderLineId(null);
 
       if (!before || !current || current.type !== "horizontal") return;
 
       submitOrderLineMove(before, current.price);
+    };
+
+    const handleTouchRelease = (event: PointerEvent) => {
+      const armedPointer = armedOrderLinePointerRef.current;
+      if (
+        armedPointer?.pointerType !== "touch" ||
+        event.pointerId !== armedPointer.pointerId
+      ) return;
+
+      /*
+       * FIX (mobile TP line confirmation): release of the same finger
+       * commits the final price, matching native drag behavior and
+       * removing the desktop-only requirement for a second tap.
+       */
+      event.preventDefault();
+      event.stopPropagation();
+
+      const before = armedOrderLineBeforeRef.current;
+      const nextPrice = updateOrderLineFromPointer(event);
+      armedOrderLineBeforeRef.current = null;
+      armedOrderLinePointerRef.current = null;
+      setArmedOrderLineId(null);
+
+      if (before && nextPrice != null) {
+        submitOrderLineMove(before, nextPrice);
+      }
+    };
+
+    const handleTouchCancel = (event: PointerEvent) => {
+      const armedPointer = armedOrderLinePointerRef.current;
+      if (
+        armedPointer?.pointerType !== "touch" ||
+        event.pointerId !== armedPointer.pointerId
+      ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancelOrderLineMove();
     };
 
     const handleCancelKey = (event: KeyboardEvent) => {
@@ -1609,16 +1675,18 @@ const markerScaleByInterval: Partial<
       cancelOrderLineMove();
     };
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerdown", handleConfirmClick, {
-      once: true,
-    });
+    window.addEventListener("pointermove", handlePointerMove, { capture: true });
+    window.addEventListener("pointerdown", handleConfirmClick, { capture: true });
+    window.addEventListener("pointerup", handleTouchRelease, { capture: true });
+    window.addEventListener("pointercancel", handleTouchCancel, { capture: true });
     window.addEventListener("keydown", handleCancelKey);
     window.addEventListener("contextmenu", handleCancelContextMenu);
 
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerdown", handleConfirmClick);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerdown", handleConfirmClick, true);
+      window.removeEventListener("pointerup", handleTouchRelease, true);
+      window.removeEventListener("pointercancel", handleTouchCancel, true);
       window.removeEventListener("keydown", handleCancelKey);
       window.removeEventListener("contextmenu", handleCancelContextMenu);
     };
@@ -2154,7 +2222,10 @@ const markerScaleByInterval: Partial<
     event.stopPropagation();
 
     if (hit.type === "horizontal" && hit.orderSide !== undefined) {
-      armOrderLineMove(hit);
+      armOrderLineMove(hit, {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+      });
       return;
     }
 
