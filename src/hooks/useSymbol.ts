@@ -78,11 +78,22 @@ function saveSymbol(symbol: TradingSymbol): void {
 
 function parseSymbolFromPath(): TradingSymbol | null {
   try {
-    const segment = window.location.pathname.split("/").filter(Boolean)[0];
+    const rawSegment = window.location.pathname.split("/").filter(Boolean)[0];
+    if (!rawSegment) return null;
+
+    const segment = decodeURIComponent(rawSegment).trim();
     if (!segment) return null;
-    const upper = segment.toUpperCase();
-    if (isTradingSymbol(upper)) return upper;
-    return getAvailableSymbols().find((s) => getSymbolInfo(s).label === upper) ?? null;
+
+    // URL deep-links (including notification links) are resolved before the
+    // async backend registry has loaded. At that point getAvailableSymbols()
+    // only contains the built-ins, so validating here used to reject dynamic
+    // symbols such as /HOLO and silently restore the last localStorage symbol.
+    // Treat a ticker-looking path as an optimistic symbol instead. The first
+    // successful registry sync below still validates it and falls back if the
+    // symbol genuinely does not exist.
+    const normalizedPathSymbol = segment.toUpperCase().replace(/[\s/_-]+/g, "");
+    if (!/^[A-Z0-9]{1,30}$/.test(normalizedPathSymbol)) return null;
+    return canonicalizeTradingSymbol(normalizedPathSymbol);
   } catch { return null; }
 }
 

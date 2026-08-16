@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { intervals, type Interval, type TradingSymbol } from "../../config/constants";
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import SymbolSwitcher from "../SymbolSwitcher/SymbolSwitcher";
@@ -76,6 +77,46 @@ export default function Topbar({
 }: TopbarProps) {
   const [isIntervalMenuOpen, setIsIntervalMenuOpen] = useState(false);
   const intervalMenuRef = useRef<HTMLDivElement | null>(null);
+  const intervalMenuPopupRef = useRef<HTMLDivElement | null>(null);
+  const [intervalMenuPosition, setIntervalMenuPosition] = useState({
+    top: 53,
+    left: 8,
+    maxHeight: 300,
+  });
+
+  const updateIntervalMenuPosition = useCallback(() => {
+    const trigger = intervalMenuRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 8;
+    const menuWidth = Math.min(270, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(rect.left, viewportPadding),
+      Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding),
+    );
+    const top = rect.bottom + 7;
+
+    setIntervalMenuPosition({
+      top,
+      left,
+      maxHeight: Math.max(120, window.innerHeight - top - viewportPadding),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isIntervalMenuOpen) return;
+
+    updateIntervalMenuPosition();
+    window.addEventListener("resize", updateIntervalMenuPosition);
+    // Capture scrolls from the horizontally scrollable mobile topbar too.
+    window.addEventListener("scroll", updateIntervalMenuPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateIntervalMenuPosition);
+      window.removeEventListener("scroll", updateIntervalMenuPosition, true);
+    };
+  }, [isIntervalMenuOpen, updateIntervalMenuPosition]);
 
   useEffect(() => {
     if (!isIntervalMenuOpen) return;
@@ -83,7 +124,8 @@ export default function Topbar({
     const handlePointerDown = (event: PointerEvent) => {
       if (
         intervalMenuRef.current &&
-        !intervalMenuRef.current.contains(event.target as Node)
+        !intervalMenuRef.current.contains(event.target as Node) &&
+        !intervalMenuPopupRef.current?.contains(event.target as Node)
       ) {
         setIsIntervalMenuOpen(false);
       }
@@ -144,9 +186,11 @@ export default function Topbar({
           <span className="mobile-timeframe-caret" aria-hidden="true">▾</span>
         </button>
 
-        {isIntervalMenuOpen && (
+        {isIntervalMenuOpen && createPortal(
           <div
+            ref={intervalMenuPopupRef}
             className="mobile-timeframe-menu"
+            style={intervalMenuPosition}
             onClick={(event) => event.stopPropagation()}
           >
             {intervalGroups.map((group) => (
@@ -168,7 +212,8 @@ export default function Topbar({
                 </div>
               </section>
             ))}
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 

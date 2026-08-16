@@ -305,11 +305,13 @@
   }
 
   .mobile-timeframe-menu {
-    position: absolute;
-    top: calc(100% + 7px);
-    left: 0;
-    z-index: 500;
+    /* Rendered through a body portal so the topbar's horizontal overflow
+     * cannot clip it and chart canvases cannot establish a layer above it. */
+    position: fixed;
+    z-index: 30000;
     width: min(270px, calc(100vw - 16px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 10px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-m);
